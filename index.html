@@ -6,165 +6,164 @@
 <title>Kegel Men</title>
 
 <style>
-:root {
-  --primary:#38bdf8;
-  --bg:#020617;
-  --card:#0f172a;
-  --text:#f8fafc;
-  --muted:#94a3b8;
-}
-
-body {
+body{
   margin:0;
   font-family:-apple-system,BlinkMacSystemFont,sans-serif;
-  background:var(--bg);
-  color:var(--text);
+  background:#020617;
+  color:#f8fafc;
   display:flex;
   justify-content:center;
   align-items:center;
   height:100vh;
 }
-
-.app { width:100%; max-width:420px; padding:16px; }
-.card {
-  background:var(--card);
-  border-radius:22px;
-  padding:20px;
-}
-
-h1 { text-align:center; color:var(--primary); }
-
-select,button {
+.card{
+  background:#0f172a;
   width:100%;
-  padding:14px;
-  margin-top:10px;
-  border-radius:14px;
+  max-width:420px;
+  padding:16px;
+  border-radius:22px;
+}
+h1{text-align:center;color:#38bdf8;margin:4px 0;}
+select,button,input{
+  width:100%;
+  padding:12px;
+  margin-top:6px;
+  border-radius:12px;
   border:none;
-  font-size:16px;
+  font-size:15px;
 }
-
-select { background:#1e293b; color:white; }
-button { background:var(--primary); color:#020617; font-weight:600; }
-button.secondary { background:#334155; color:white; }
-
-.hidden { display:none; }
-
-.progress {
-  width:180px; height:180px;
-  margin:20px auto;
-  border-radius:50%;
-  border:10px solid #1e293b;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  flex-direction:column;
+select,input{background:#1e293b;color:white;}
+button{background:#38bdf8;color:#020617;font-weight:600;}
+.secondary{background:#334155;color:white;}
+.small{text-align:center;font-size:12px;color:#cbd5f5;}
+.chat{
+  background:#020617;
+  border-radius:14px;
+  padding:8px;
+  height:160px;
+  overflow-y:auto;
+  font-size:13px;
+  margin-top:8px;
 }
-
-.state { font-size:20px; font-weight:600; }
-.time { font-size:40px; }
-
-.info { font-size:13px; color:var(--muted); text-align:center; margin-top:8px; }
-
-.discreet body,
-.discreet .card {
-  background:black !important;
-  color:black !important;
-}
+.msg-user{color:#38bdf8;margin:4px 0;}
+.msg-ai{color:#a7f3d0;margin:4px 0;}
 </style>
 </head>
 
 <body>
-<div class="app">
-  <div class="card">
-    <h1>Kegel Men</h1>
+<div class="card">
+<h1>Kegel Men</h1>
 
-    <select id="routine">
-      <option value="">Selecciona rutina</option>
-      <option value="medical">🩺 Médica</option>
-      <option value="sexual">❤️ Sexual</option>
-      <option value="prostate">🧠 Post-próstata</option>
-    </select>
+<select id="profileSelect"></select>
+<input id="newProfile" placeholder="Nuevo perfil (nombre)" />
+<button onclick="createProfile()">Crear perfil</button>
 
-    <div class="progress">
-      <div class="state" id="state">Listo</div>
-      <div class="time" id="time">–</div>
-    </div>
+<select id="program">
+  <option value="">Elegir programa</option>
+  <option value="micro">⚡ Micro</option>
+  <option value="normal">🟢 Normal</option>
+  <option value="medium">🟡 Medio</option>
+  <option value="long">🔵 Extenso</option>
+</select>
 
-    <div class="info" id="info"></div>
+<div class="small" id="programInfo"></div>
 
-    <button id="start" disabled>Iniciar</button>
-    <button class="secondary" id="discreet">Modo discreto 🌙</button>
-    <button class="secondary" id="history">Historial 📆</button>
-  </div>
+<button id="start" disabled>Iniciar</button>
+
+<div class="chat" id="chat"></div>
+<input id="chatInput" placeholder="Habla con tu coach…" />
+<button class="secondary" onclick="sendMsg()">Enviar 💬</button>
+
+<div class="small">Privado · Local · Sin servidores</div>
 </div>
 
 <script>
-const routines = {
- medical:{h:5,r:5,n:10,t:"Control urinario. No forzar."},
- sexual:{h:7,r:5,n:12,t:"Rendimiento sexual. Máx 2/día."},
- prostate:{h:3,r:6,n:8,t:"Rehabilitación post cirugía."}
+/* ============ PROGRAMAS ============ */
+const programs={
+ micro:{h:3,r:3,reps:10},
+ normal:{h:5,r:5,reps:20},
+ medium:{h:6,r:6,reps:30},
+ long:{h:7,r:7,reps:35}
 };
 
-let phase,time,rep,routine,intv;
-
-const stateEl=timeEl=infoEl=null;
-const state=document.getElementById("state");
-const timeEl=document.getElementById("time");
-const info=document.getElementById("info");
-const start=document.getElementById("start");
-
-document.getElementById("routine").onchange=e=>{
- routine=routines[e.target.value];
- if(!routine) return;
- info.textContent=routine.t+" ⚠️ Si hay dolor, suspender.";
- start.disabled=false;
-};
-
-start.onclick=()=>{
- rep=0; phase="hold"; time=routine.h;
- start.disabled=true;
- tick();
- intv=setInterval(tick,1000);
-};
-
-function tick(){
- navigator.vibrate?.(50);
- timeEl.textContent=time;
- state.textContent=phase==="hold"?"Contrae":"Relaja";
- time--;
- if(time<0){
-  if(phase==="hold"){phase="relax";time=routine.r;}
-  else{
-   rep++;
-   if(rep>=routine.n){finish();return;}
-   phase="hold";time=routine.h;
-  }
- }
+/* ============ PERFILES ============ */
+function getProfiles(){
+ return JSON.parse(localStorage.getItem("profiles")||"{}");
+}
+function saveProfiles(p){
+ localStorage.setItem("profiles",JSON.stringify(p));
 }
 
-function finish(){
- clearInterval(intv);
- state.textContent="Completado ✔";
- timeEl.textContent="✓";
- saveHistory();
- start.disabled=false;
+let profiles=getProfiles();
+let currentProfile=null;
+
+function refreshProfiles(){
+ const sel=document.getElementById("profileSelect");
+ sel.innerHTML="";
+ Object.keys(profiles).forEach(n=>{
+  const o=document.createElement("option");
+  o.value=n;o.textContent=n;
+  sel.appendChild(o);
+ });
+ if(currentProfile) sel.value=currentProfile;
 }
 
-function saveHistory(){
- const d=new Date().toLocaleDateString();
- const h=JSON.parse(localStorage.getItem("kegelHistory")||"{}");
- h[d]=(h[d]||0)+1;
- localStorage.setItem("kegelHistory",JSON.stringify(h));
+function createProfile(){
+ const name=document.getElementById("newProfile").value.trim();
+ if(!name||profiles[name]) return;
+ profiles[name]={coachStyle:runTest(),log:{}};
+ saveProfiles(profiles);
+ currentProfile=name;
+ refreshProfiles();
+ addMsg("Perfil creado. Ajusté tu coach automáticamente.","ai");
 }
 
-document.getElementById("history").onclick=()=>{
- const h=JSON.parse(localStorage.getItem("kegelHistory")||"{}");
- alert("Historial:\n"+Object.entries(h).map(e=>`${e[0]}: ${e[1]}`).join("\n"));
+document.getElementById("profileSelect").onchange=e=>{
+ currentProfile=e.target.value;
+ addMsg("Perfil cargado.","ai");
 };
 
-document.getElementById("discreet").onclick=()=>{
- document.documentElement.classList.toggle("discreet");
-};
+/* ============ TEST INICIAL ============ */
+function runTest(){
+ const q1=confirm("¿Te preocupa hacerlo correctamente?");
+ const q2=confirm("¿Buscas motivación constante?");
+ if(q1 && q2) return "mixed";
+ if(q1) return "clinical";
+ if(q2) return "emotional";
+ return "fitness";
+}
+
+/* ============ CHAT ============ */
+const chat=document.getElementById("chat");
+function addMsg(t,type){
+ const d=document.createElement("div");
+ d.className=type==="user"?"msg-user":"msg-ai";
+ d.textContent=t;
+ chat.appendChild(d);
+ chat.scrollTop=chat.scrollHeight;
+}
+addMsg("Crea o elige un perfil para comenzar.","ai");
+
+function coachResponse(text){
+ if(!currentProfile) return "Primero crea o selecciona un perfil.";
+ const style=profiles[currentProfile].coachStyle;
+ if(style==="clinical") return "Concéntrate en técnica y respiración.";
+ if(style==="emotional") return "Estoy contigo. Paso a paso.";
+ if(style==="fitness") return "Vamos, cada sesión suma.";
+ return "Hoy mezclamos técnica y motivación. Buen enfoque.";
+}
+
+function sendMsg(){
+ const i=document.getElementById("chatInput");
+ const t=i.value.trim();
+ if(!t)return;
+ addMsg(t,"user");
+ i.value="";
+ setTimeout(()=>addMsg(coachResponse(t),"ai"),300);
+}
+
+/* ============ INICIO ============ */
+refreshProfiles();
 </script>
 </body>
 </html>
