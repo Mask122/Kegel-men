@@ -23,7 +23,7 @@ body{
   padding:16px;
   border-radius:22px;
 }
-h1{text-align:center;color:#38bdf8;margin:4px 0;}
+h1{text-align:center;color:#38bdf8;margin:6px 0;}
 select,button,input{
   width:100%;
   padding:12px;
@@ -35,18 +35,20 @@ select,button,input{
 select,input{background:#1e293b;color:white;}
 button{background:#38bdf8;color:#020617;font-weight:600;}
 .secondary{background:#334155;color:white;}
+.state{text-align:center;font-size:18px;margin-top:8px;}
+.time{text-align:center;font-size:36px;margin:6px 0;}
 .small{text-align:center;font-size:12px;color:#cbd5f5;}
-.chat{
+
+canvas{
   background:#020617;
-  border-radius:14px;
-  padding:8px;
-  height:160px;
-  overflow-y:auto;
-  font-size:13px;
+  border-radius:12px;
   margin-top:8px;
 }
-.msg-user{color:#38bdf8;margin:4px 0;}
-.msg-ai{color:#a7f3d0;margin:4px 0;}
+
+.discreet *{
+  background:black!important;
+  color:black!important;
+}
 </style>
 </head>
 
@@ -55,7 +57,7 @@ button{background:#38bdf8;color:#020617;font-weight:600;}
 <h1>Kegel Men</h1>
 
 <select id="profileSelect"></select>
-<input id="newProfile" placeholder="Nuevo perfil (nombre)" />
+<input id="newProfile" placeholder="Nuevo perfil" />
 <button onclick="createProfile()">Crear perfil</button>
 
 <select id="program">
@@ -66,19 +68,22 @@ button{background:#38bdf8;color:#020617;font-weight:600;}
   <option value="long">🔵 Extenso</option>
 </select>
 
-<div class="small" id="programInfo"></div>
+<div class="state" id="state">Listo</div>
+<div class="time" id="time">–</div>
 
 <button id="start" disabled>Iniciar</button>
+<button class="secondary" id="pause" disabled>Pausar</button>
 
-<div class="chat" id="chat"></div>
-<input id="chatInput" placeholder="Habla con tu coach…" />
-<button class="secondary" onclick="sendMsg()">Enviar 💬</button>
+<canvas id="chart" width="380" height="120"></canvas>
 
-<div class="small">Privado · Local · Sin servidores</div>
+<button class="secondary" onclick="askNotification()">Activar recordatorio 🔔</button>
+<button class="secondary" onclick="toggleDiscreet()">Modo discreto 🌙</button>
+
+<div class="small">Local · Privado · Sin servidores</div>
 </div>
 
 <script>
-/* ============ PROGRAMAS ============ */
+/* ===== PROGRAMAS ===== */
 const programs={
  micro:{h:3,r:3,reps:10},
  normal:{h:5,r:5,reps:20},
@@ -86,83 +91,151 @@ const programs={
  long:{h:7,r:7,reps:35}
 };
 
-/* ============ PERFILES ============ */
+/* ===== PERFILES ===== */
 function getProfiles(){
  return JSON.parse(localStorage.getItem("profiles")||"{}");
 }
 function saveProfiles(p){
  localStorage.setItem("profiles",JSON.stringify(p));
 }
-
 let profiles=getProfiles();
 let currentProfile=null;
 
+const profileSelect=document.getElementById("profileSelect");
+
 function refreshProfiles(){
- const sel=document.getElementById("profileSelect");
- sel.innerHTML="";
+ profileSelect.innerHTML="";
  Object.keys(profiles).forEach(n=>{
   const o=document.createElement("option");
   o.value=n;o.textContent=n;
-  sel.appendChild(o);
+  profileSelect.appendChild(o);
  });
- if(currentProfile) sel.value=currentProfile;
+ if(!currentProfile && Object.keys(profiles).length){
+  currentProfile=Object.keys(profiles)[0];
+ }
+ profileSelect.value=currentProfile||"";
+ drawChart();
 }
 
 function createProfile(){
  const name=document.getElementById("newProfile").value.trim();
- if(!name||profiles[name]) return;
- profiles[name]={coachStyle:runTest(),log:{}};
+ if(!name||profiles[name])return;
+ profiles[name]={log:{}};
  saveProfiles(profiles);
  currentProfile=name;
  refreshProfiles();
- addMsg("Perfil creado. Ajusté tu coach automáticamente.","ai");
 }
 
-document.getElementById("profileSelect").onchange=e=>{
+profileSelect.onchange=e=>{
  currentProfile=e.target.value;
- addMsg("Perfil cargado.","ai");
+ drawChart();
 };
 
-/* ============ TEST INICIAL ============ */
-function runTest(){
- const q1=confirm("¿Te preocupa hacerlo correctamente?");
- const q2=confirm("¿Buscas motivación constante?");
- if(q1 && q2) return "mixed";
- if(q1) return "clinical";
- if(q2) return "emotional";
- return "fitness";
+/* ===== TEMPORIZADOR ===== */
+let currentProgram=null,phase="hold",timeLeft=0,rep=0,interval=null,paused=false;
+const stateEl=document.getElementById("state");
+const timeEl=document.getElementById("time");
+const startBtn=document.getElementById("start");
+const pauseBtn=document.getElementById("pause");
+
+document.getElementById("program").onchange=e=>{
+ currentProgram=programs[e.target.value];
+ startBtn.disabled=!currentProgram;
+};
+
+startBtn.onclick=()=>{
+ if(!currentProgram||!currentProfile)return;
+ rep=0;phase="hold";timeLeft=currentProgram.h;paused=false;
+ startBtn.disabled=true;pauseBtn.disabled=false;
+ stateEl.textContent="Contrae";timeEl.textContent=timeLeft;
+ interval=setInterval(tick,1000);
+};
+
+pauseBtn.onclick=()=>{
+ paused=!paused;
+ pauseBtn.textContent=paused?"Reanudar":"Pausar";
+};
+
+function tick(){
+ if(paused)return;
+ navigator.vibrate?.(20);
+ timeLeft--;timeEl.textContent=timeLeft;
+ if(timeLeft<=0){
+  if(phase==="hold"){
+    phase="relax";stateEl.textContent="Relaja";timeLeft=currentProgram.r;
+  }else{
+    rep++;
+    if(rep>=currentProgram.reps){finish();return;}
+    phase="hold";stateEl.textContent="Contrae";timeLeft=currentProgram.h;
+  }
+ }
 }
 
-/* ============ CHAT ============ */
-const chat=document.getElementById("chat");
-function addMsg(t,type){
- const d=document.createElement("div");
- d.className=type==="user"?"msg-user":"msg-ai";
- d.textContent=t;
- chat.appendChild(d);
- chat.scrollTop=chat.scrollHeight;
-}
-addMsg("Crea o elige un perfil para comenzar.","ai");
-
-function coachResponse(text){
- if(!currentProfile) return "Primero crea o selecciona un perfil.";
- const style=profiles[currentProfile].coachStyle;
- if(style==="clinical") return "Concéntrate en técnica y respiración.";
- if(style==="emotional") return "Estoy contigo. Paso a paso.";
- if(style==="fitness") return "Vamos, cada sesión suma.";
- return "Hoy mezclamos técnica y motivación. Buen enfoque.";
+function finish(){
+ clearInterval(interval);
+ stateEl.textContent="Completado ✔";
+ timeEl.textContent="✓";
+ pauseBtn.disabled=true;
+ startBtn.disabled=false;
+ saveSession();
+ drawChart();
 }
 
-function sendMsg(){
- const i=document.getElementById("chatInput");
- const t=i.value.trim();
- if(!t)return;
- addMsg(t,"user");
- i.value="";
- setTimeout(()=>addMsg(coachResponse(t),"ai"),300);
+/* ===== HISTORIAL ===== */
+function saveSession(){
+ const d=new Date().toISOString().slice(0,10);
+ const log=profiles[currentProfile].log;
+ log[d]=(log[d]||0)+1;
+ saveProfiles(profiles);
 }
 
-/* ============ INICIO ============ */
+/* ===== GRÁFICO ===== */
+function drawChart(){
+ const c=document.getElementById("chart");
+ const ctx=c.getContext("2d");
+ ctx.clearRect(0,0,c.width,c.height);
+ if(!currentProfile)return;
+
+ const log=profiles[currentProfile].log;
+ const days=[];
+ for(let i=6;i>=0;i--){
+  const d=new Date();d.setDate(d.getDate()-i);
+  days.push(d.toISOString().slice(0,10));
+ }
+
+ const max=Math.max(1,...days.map(d=>log[d]||0));
+ days.forEach((d,i)=>{
+  const v=log[d]||0;
+  const h=(v/max)*80;
+  ctx.fillStyle="#38bdf8";
+  ctx.fillRect(10+i*50,100-h,20,h);
+ });
+}
+
+/* ===== NOTIFICACIONES ===== */
+function askNotification(){
+ if(!("Notification" in window)){
+  alert("Notificaciones no soportadas");
+  return;
+ }
+ Notification.requestPermission().then(p=>{
+  if(p==="granted"){
+    alert("Recordatorio diario activado (mientras Safari esté abierto)");
+    setInterval(()=>{
+      new Notification("Kegel Men",{
+        body:"Es momento de tu ejercicio"
+      });
+    },86400000);
+  }
+ });
+}
+
+/* ===== DISCRETO ===== */
+function toggleDiscreet(){
+ document.body.classList.toggle("discreet");
+}
+
+/* ===== INIT ===== */
 refreshProfiles();
 </script>
 </body>
