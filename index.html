@@ -4,152 +4,167 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Kegel Men</title>
+
 <style>
+:root {
+  --primary:#38bdf8;
+  --bg:#020617;
+  --card:#0f172a;
+  --text:#f8fafc;
+  --muted:#94a3b8;
+}
+
 body {
-  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-  background: #020617;
-  color: #f8fafc;
-  text-align: center;
-  padding: 20px;
+  margin:0;
+  font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
 }
-.container {
-  max-width: 420px;
-  margin: auto;
-  background: #0f172a;
-  padding: 20px;
-  border-radius: 16px;
+
+.app { width:100%; max-width:420px; padding:16px; }
+.card {
+  background:var(--card);
+  border-radius:22px;
+  padding:20px;
 }
-h1 { color: #38bdf8; }
-select, button {
-  width: 100%;
-  padding: 12px;
-  margin-top: 10px;
-  border-radius: 10px;
-  font-size: 16px;
+
+h1 { text-align:center; color:var(--primary); }
+
+select,button {
+  width:100%;
+  padding:14px;
+  margin-top:10px;
+  border-radius:14px;
+  border:none;
+  font-size:16px;
 }
-select {
-  background: #1e293b;
-  color: #f8fafc;
-  border: none;
+
+select { background:#1e293b; color:white; }
+button { background:var(--primary); color:#020617; font-weight:600; }
+button.secondary { background:#334155; color:white; }
+
+.hidden { display:none; }
+
+.progress {
+  width:180px; height:180px;
+  margin:20px auto;
+  border-radius:50%;
+  border:10px solid #1e293b;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-direction:column;
 }
-button {
-  background: #38bdf8;
-  color: #020617;
-  border: none;
-}
-button:disabled {
-  background: #64748b;
-}
-.timer {
-  font-size: 52px;
-  margin: 20px 0;
-}
-.status {
-  font-size: 20px;
-  margin-bottom: 10px;
-}
-.info {
-  font-size: 14px;
-  color: #cbd5f5;
+
+.state { font-size:20px; font-weight:600; }
+.time { font-size:40px; }
+
+.info { font-size:13px; color:var(--muted); text-align:center; margin-top:8px; }
+
+.discreet body,
+.discreet .card {
+  background:black !important;
+  color:black !important;
 }
 </style>
 </head>
+
 <body>
+<div class="app">
+  <div class="card">
+    <h1>Kegel Men</h1>
 
-<div class="container">
-  <h1>Kegel Men</h1>
+    <select id="routine">
+      <option value="">Selecciona rutina</option>
+      <option value="medical">🩺 Médica</option>
+      <option value="sexual">❤️ Sexual</option>
+      <option value="prostate">🧠 Post-próstata</option>
+    </select>
 
-  <select id="routine">
-    <option value="">Selecciona rutina</option>
-    <option value="medical">🩺 Médica (orina)</option>
-    <option value="sexual">❤️ Sexual</option>
-    <option value="prostate">🧠 Post-próstata</option>
-  </select>
+    <div class="progress">
+      <div class="state" id="state">Listo</div>
+      <div class="time" id="time">–</div>
+    </div>
 
-  <div class="timer" id="timer">0</div>
-  <div class="status" id="status">Elige una rutina</div>
-  <div class="info" id="info"></div>
+    <div class="info" id="info"></div>
 
-  <button id="startBtn" disabled>Iniciar</button>
+    <button id="start" disabled>Iniciar</button>
+    <button class="secondary" id="discreet">Modo discreto 🌙</button>
+    <button class="secondary" id="history">Historial 📆</button>
+  </div>
 </div>
 
 <script>
 const routines = {
-  medical: {
-    name: "Control urinario",
-    hold: 5,
-    relax: 5,
-    reps: 10,
-    text: "Contrae suavemente para mejorar escapes de orina."
-  },
-  sexual: {
-    name: "Rendimiento sexual",
-    hold: 7,
-    relax: 5,
-    reps: 12,
-    text: "Contracción firme para erección y control."
-  },
-  prostate: {
-    name: "Rehabilitación post-próstata",
-    hold: 3,
-    relax: 6,
-    reps: 8,
-    text: "Contracciones suaves, sin forzar."
-  }
+ medical:{h:5,r:5,n:10,t:"Control urinario. No forzar."},
+ sexual:{h:7,r:5,n:12,t:"Rendimiento sexual. Máx 2/día."},
+ prostate:{h:3,r:6,n:8,t:"Rehabilitación post cirugía."}
 };
 
-let interval, phase, timeLeft, currentRep, routine;
+let phase,time,rep,routine,intv;
 
-const timerEl = document.getElementById("timer");
-const statusEl = document.getElementById("status");
-const infoEl = document.getElementById("info");
-const startBtn = document.getElementById("startBtn");
-const routineSelect = document.getElementById("routine");
+const stateEl=timeEl=infoEl=null;
+const state=document.getElementById("state");
+const timeEl=document.getElementById("time");
+const info=document.getElementById("info");
+const start=document.getElementById("start");
 
-routineSelect.addEventListener("change", () => {
-  routine = routines[routineSelect.value];
-  if (routine) {
-    infoEl.textContent = routine.text;
-    startBtn.disabled = false;
-    statusEl.textContent = "Listo para empezar";
-    timerEl.textContent = routine.hold;
+document.getElementById("routine").onchange=e=>{
+ routine=routines[e.target.value];
+ if(!routine) return;
+ info.textContent=routine.t+" ⚠️ Si hay dolor, suspender.";
+ start.disabled=false;
+};
+
+start.onclick=()=>{
+ rep=0; phase="hold"; time=routine.h;
+ start.disabled=true;
+ tick();
+ intv=setInterval(tick,1000);
+};
+
+function tick(){
+ navigator.vibrate?.(50);
+ timeEl.textContent=time;
+ state.textContent=phase==="hold"?"Contrae":"Relaja";
+ time--;
+ if(time<0){
+  if(phase==="hold"){phase="relax";time=routine.r;}
+  else{
+   rep++;
+   if(rep>=routine.n){finish();return;}
+   phase="hold";time=routine.h;
   }
-});
+ }
+}
 
-startBtn.addEventListener("click", () => {
-  startBtn.disabled = true;
-  currentRep = 0;
-  phase = "hold";
-  timeLeft = routine.hold;
-  statusEl.textContent = "Contrae";
-  timerEl.textContent = timeLeft;
+function finish(){
+ clearInterval(intv);
+ state.textContent="Completado ✔";
+ timeEl.textContent="✓";
+ saveHistory();
+ start.disabled=false;
+}
 
-  interval = setInterval(() => {
-    timeLeft--;
-    timerEl.textContent = timeLeft;
+function saveHistory(){
+ const d=new Date().toLocaleDateString();
+ const h=JSON.parse(localStorage.getItem("kegelHistory")||"{}");
+ h[d]=(h[d]||0)+1;
+ localStorage.setItem("kegelHistory",JSON.stringify(h));
+}
 
-    if (timeLeft <= 0) {
-      if (phase === "hold") {
-        phase = "relax";
-        timeLeft = routine.relax;
-        statusEl.textContent = "Relaja";
-      } else {
-        currentRep++;
-        if (currentRep >= routine.reps) {
-          clearInterval(interval);
-          statusEl.textContent = "Rutina completada ✔";
-          timerEl.textContent = "✓";
-          startBtn.disabled = false;
-          return;
-        }
-        phase = "hold";
-        timeLeft = routine.hold;
-        statusEl.textContent = "Contrae";
-      }
-    }
-  }, 1000);
-});
+document.getElementById("history").onclick=()=>{
+ const h=JSON.parse(localStorage.getItem("kegelHistory")||"{}");
+ alert("Historial:\n"+Object.entries(h).map(e=>`${e[0]}: ${e[1]}`).join("\n"));
+};
+
+document.getElementById("discreet").onclick=()=>{
+ document.documentElement.classList.toggle("discreet");
+};
 </script>
-
 </body>
 </html>
