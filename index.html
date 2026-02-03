@@ -39,15 +39,22 @@ button{background:#38bdf8;color:#020617;font-weight:600;}
 .time{text-align:center;font-size:36px;margin:6px 0;}
 .small{text-align:center;font-size:12px;color:#cbd5f5;}
 
+.chat{
+  background:#020617;
+  border-radius:14px;
+  padding:8px;
+  height:140px;
+  overflow-y:auto;
+  font-size:13px;
+  margin-top:8px;
+}
+.msg-user{color:#38bdf8;margin:4px 0;}
+.msg-ai{color:#a7f3d0;margin:4px 0;}
+
 canvas{
   background:#020617;
   border-radius:12px;
   margin-top:8px;
-}
-
-.discreet *{
-  background:black!important;
-  color:black!important;
 }
 </style>
 </head>
@@ -74,12 +81,13 @@ canvas{
 <button id="start" disabled>Iniciar</button>
 <button class="secondary" id="pause" disabled>Pausar</button>
 
-<canvas id="chart" width="380" height="120"></canvas>
+<canvas id="chart" width="380" height="110"></canvas>
 
-<button class="secondary" onclick="askNotification()">Activar recordatorio 🔔</button>
-<button class="secondary" onclick="toggleDiscreet()">Modo discreto 🌙</button>
+<div class="chat" id="chat"></div>
+<input id="chatInput" placeholder="Habla con tu coach…" />
+<button class="secondary" onclick="sendMsg()">Enviar 💬</button>
 
-<div class="small">Local · Privado · Sin servidores</div>
+<div class="small">Coach dinámico · 100% local</div>
 </div>
 
 <script>
@@ -103,6 +111,15 @@ let currentProfile=null;
 
 const profileSelect=document.getElementById("profileSelect");
 
+function autoTest(){
+ const q1=confirm("¿Te preocupa hacerlo correctamente?");
+ const q2=confirm("¿Necesitas motivación constante?");
+ if(q1 && q2) return "mixed";
+ if(q1) return "clinical";
+ if(q2) return "emotional";
+ return "fitness";
+}
+
 function refreshProfiles(){
  profileSelect.innerHTML="";
  Object.keys(profiles).forEach(n=>{
@@ -120,16 +137,59 @@ function refreshProfiles(){
 function createProfile(){
  const name=document.getElementById("newProfile").value.trim();
  if(!name||profiles[name])return;
- profiles[name]={log:{}};
+ profiles[name]={log:{},style:autoTest(),sessions:0};
  saveProfiles(profiles);
  currentProfile=name;
  refreshProfiles();
+ addMsg("Perfil creado. Ajusté tu coach según tus respuestas.","ai");
 }
 
 profileSelect.onchange=e=>{
  currentProfile=e.target.value;
  drawChart();
+ addMsg("Perfil cargado. Continuamos.","ai");
 };
+
+/* ===== CHAT ===== */
+const chat=document.getElementById("chat");
+function addMsg(t,type){
+ const d=document.createElement("div");
+ d.className=type==="user"?"msg-user":"msg-ai";
+ d.textContent=t;
+ chat.appendChild(d);
+ chat.scrollTop=chat.scrollHeight;
+}
+
+addMsg("Soy tu coach. Te acompaño durante toda la sesión.","ai");
+
+function contextualCoach(){
+ const p=profiles[currentProfile];
+ if(!p) return "Empezamos cuando quieras.";
+
+ const progress=rep/(currentProgram?.reps||1);
+
+ if(paused) return "Pausa bien hecha. Respira profundo y retomamos cuando estés listo.";
+
+ if(progress===0){
+   return "Comenzamos con calma. Encuentra el músculo, respira natural y no fuerces.";
+ }
+ if(progress<0.4){
+   return "Buen ritmo. Concéntrate en la contracción sin apretar abdomen ni glúteos.";
+ }
+ if(progress<0.8){
+   return "Aquí es donde se construye el progreso. Mantén control y constancia.";
+ }
+ return "Últimos ciclos. Técnica limpia, sin tensión extra. Estás cerrando bien.";
+}
+
+function sendMsg(){
+ const i=document.getElementById("chatInput");
+ const t=i.value.trim();
+ if(!t||!currentProfile)return;
+ addMsg(t,"user");
+ i.value="";
+ setTimeout(()=>addMsg(contextualCoach(),"ai"),400);
+}
 
 /* ===== TEMPORIZADOR ===== */
 let currentProgram=null,phase="hold",timeLeft=0,rep=0,interval=null,paused=false;
@@ -148,17 +208,18 @@ startBtn.onclick=()=>{
  rep=0;phase="hold";timeLeft=currentProgram.h;paused=false;
  startBtn.disabled=true;pauseBtn.disabled=false;
  stateEl.textContent="Contrae";timeEl.textContent=timeLeft;
+ addMsg("Iniciamos. Hoy cuenta la constancia, no la fuerza.","ai");
  interval=setInterval(tick,1000);
 };
 
 pauseBtn.onclick=()=>{
  paused=!paused;
  pauseBtn.textContent=paused?"Reanudar":"Pausar";
+ addMsg(contextualCoach(),"ai");
 };
 
 function tick(){
  if(paused)return;
- navigator.vibrate?.(20);
  timeLeft--;timeEl.textContent=timeLeft;
  if(timeLeft<=0){
   if(phase==="hold"){
@@ -167,6 +228,7 @@ function tick(){
     rep++;
     if(rep>=currentProgram.reps){finish();return;}
     phase="hold";stateEl.textContent="Contrae";timeLeft=currentProgram.h;
+    if(rep%5===0) addMsg(contextualCoach(),"ai");
   }
  }
 }
@@ -177,11 +239,13 @@ function finish(){
  timeEl.textContent="✓";
  pauseBtn.disabled=true;
  startBtn.disabled=false;
+ profiles[currentProfile].sessions++;
  saveSession();
  drawChart();
+ addMsg("Sesión completa. Mañana tu cuerpo lo agradecerá.","ai");
 }
 
-/* ===== HISTORIAL ===== */
+/* ===== HISTORIAL + GRÁFICO ===== */
 function saveSession(){
  const d=new Date().toISOString().slice(0,10);
  const log=profiles[currentProfile].log;
@@ -189,20 +253,17 @@ function saveSession(){
  saveProfiles(profiles);
 }
 
-/* ===== GRÁFICO ===== */
 function drawChart(){
  const c=document.getElementById("chart");
  const ctx=c.getContext("2d");
  ctx.clearRect(0,0,c.width,c.height);
  if(!currentProfile)return;
-
  const log=profiles[currentProfile].log;
  const days=[];
  for(let i=6;i>=0;i--){
   const d=new Date();d.setDate(d.getDate()-i);
   days.push(d.toISOString().slice(0,10));
  }
-
  const max=Math.max(1,...days.map(d=>log[d]||0));
  days.forEach((d,i)=>{
   const v=log[d]||0;
@@ -210,29 +271,6 @@ function drawChart(){
   ctx.fillStyle="#38bdf8";
   ctx.fillRect(10+i*50,100-h,20,h);
  });
-}
-
-/* ===== NOTIFICACIONES ===== */
-function askNotification(){
- if(!("Notification" in window)){
-  alert("Notificaciones no soportadas");
-  return;
- }
- Notification.requestPermission().then(p=>{
-  if(p==="granted"){
-    alert("Recordatorio diario activado (mientras Safari esté abierto)");
-    setInterval(()=>{
-      new Notification("Kegel Men",{
-        body:"Es momento de tu ejercicio"
-      });
-    },86400000);
-  }
- });
-}
-
-/* ===== DISCRETO ===== */
-function toggleDiscreet(){
- document.body.classList.toggle("discreet");
 }
 
 /* ===== INIT ===== */
