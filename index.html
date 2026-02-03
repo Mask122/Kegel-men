@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kegel Men</title>
+<style>
+body {
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #020617;
+  color: #f8fafc;
+  text-align: center;
+  padding: 20px;
+}
+.container {
+  max-width: 420px;
+  margin: auto;
+  background: #0f172a;
+  padding: 20px;
+  border-radius: 16px;
+}
+h1 { color: #38bdf8; }
+select, button {
+  width: 100%;
+  padding: 12px;
+  margin-top: 10px;
+  border-radius: 10px;
+  font-size: 16px;
+}
+select {
+  background: #1e293b;
+  color: #f8fafc;
+  border: none;
+}
+button {
+  background: #38bdf8;
+  color: #020617;
+  border: none;
+}
+button:disabled {
+  background: #64748b;
+}
+.timer {
+  font-size: 52px;
+  margin: 20px 0;
+}
+.status {
+  font-size: 20px;
+  margin-bottom: 10px;
+}
+.info {
+  font-size: 14px;
+  color: #cbd5f5;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Kegel Men</h1>
+
+  <select id="routine">
+    <option value="">Selecciona rutina</option>
+    <option value="medical">🩺 Médica (orina)</option>
+    <option value="sexual">❤️ Sexual</option>
+    <option value="prostate">🧠 Post-próstata</option>
+  </select>
+
+  <div class="timer" id="timer">0</div>
+  <div class="status" id="status">Elige una rutina</div>
+  <div class="info" id="info"></div>
+
+  <button id="startBtn" disabled>Iniciar</button>
+</div>
+
+<script>
+const routines = {
+  medical: {
+    name: "Control urinario",
+    hold: 5,
+    relax: 5,
+    reps: 10,
+    text: "Contrae suavemente para mejorar escapes de orina."
+  },
+  sexual: {
+    name: "Rendimiento sexual",
+    hold: 7,
+    relax: 5,
+    reps: 12,
+    text: "Contracción firme para erección y control."
+  },
+  prostate: {
+    name: "Rehabilitación post-próstata",
+    hold: 3,
+    relax: 6,
+    reps: 8,
+    text: "Contracciones suaves, sin forzar."
+  }
+};
+
+let interval, phase, timeLeft, currentRep, routine;
+
+const timerEl = document.getElementById("timer");
+const statusEl = document.getElementById("status");
+const infoEl = document.getElementById("info");
+const startBtn = document.getElementById("startBtn");
+const routineSelect = document.getElementById("routine");
+
+routineSelect.addEventListener("change", () => {
+  routine = routines[routineSelect.value];
+  if (routine) {
+    infoEl.textContent = routine.text;
+    startBtn.disabled = false;
+    statusEl.textContent = "Listo para empezar";
+    timerEl.textContent = routine.hold;
+  }
+});
+
+startBtn.addEventListener("click", () => {
+  startBtn.disabled = true;
+  currentRep = 0;
+  phase = "hold";
+  timeLeft = routine.hold;
+  statusEl.textContent = "Contrae";
+  timerEl.textContent = timeLeft;
+
+  interval = setInterval(() => {
+    timeLeft--;
+    timerEl.textContent = timeLeft;
+
+    if (timeLeft <= 0) {
+      if (phase === "hold") {
+        phase = "relax";
+        timeLeft = routine.relax;
+        statusEl.textContent = "Relaja";
+      } else {
+        currentRep++;
+        if (currentRep >= routine.reps) {
+          clearInterval(interval);
+          statusEl.textContent = "Rutina completada ✔";
+          timerEl.textContent = "✓";
+          startBtn.disabled = false;
+          return;
+        }
+        phase = "hold";
+        timeLeft = routine.hold;
+        statusEl.textContent = "Contrae";
+      }
+    }
+  }, 1000);
+});
+</script>
+
+</body>
+</html>
